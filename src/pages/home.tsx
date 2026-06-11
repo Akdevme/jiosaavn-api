@@ -125,7 +125,7 @@ Home.get('/', (c) => {
                 <div class="text-neutral-500 mt-2">
                   Have a question or need help? Reach out on{' '}
                   <a
-                    href="https://github.com/akdevuix"
+                    href="https://github.com/akdevme"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:underline text-indigo-500"
