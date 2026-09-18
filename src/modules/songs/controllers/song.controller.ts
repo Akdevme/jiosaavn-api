@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono } from '@hono/zod-openapi'
-import { SongModel } from '#modules/songs/models'
+import { SongModel, SyncedLyricsModel } from '#modules/songs/models'
 import { SongService } from '#modules/songs/services'
 import { z } from 'zod'
 import type { Routes } from '#common/types'
@@ -184,6 +184,54 @@ export class SongController implements Routes {
         const suggestions = await this.songService.getSongSuggestions({ songId, limit: limit || 10 })
 
         return ctx.json({ success: true, data: suggestions })
+      }
+    )
+
+    this.controller.openapi(
+      createRoute({
+        method: 'get',
+        path: '/songs/{id}/lyrics',
+        tags: ['Songs'],
+        summary: 'Retrieve synced lyrics',
+        description:
+          'Retrieve synced lyrics for a song by its JioSaavn ID. The response includes raw LRC lyrics and parsed timestamped lines when available.',
+        operationId: 'getSyncedLyrics',
+        request: {
+          params: z.object({
+            id: z.string().openapi({
+              description: 'ID of the song to retrieve synced lyrics for',
+              type: 'string',
+              example: '3IoDK8qI'
+            })
+          })
+        },
+        responses: {
+          200: {
+            description: 'Successful response with synced lyrics',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.boolean().openapi({
+                    description: 'Indicates whether the request was successful',
+                    type: 'boolean',
+                    example: true
+                  }),
+                  data: SyncedLyricsModel.openapi({
+                    description: 'Synced lyrics in raw LRC and parsed line formats'
+                  })
+                })
+              }
+            }
+          },
+          404: { description: 'Song or synced lyrics not found for the given ID' }
+        }
+      }),
+      async (ctx) => {
+        const songId = ctx.req.param('id')
+
+        const lyrics = await this.songService.getSyncedLyrics({ songId })
+
+        return ctx.json({ success: true, data: lyrics })
       }
     )
   }

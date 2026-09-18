@@ -10,6 +10,65 @@ import type {
 } from '#modules/search/models'
 import type { z } from 'zod'
 
+type SearchSongCandidate = {
+  id?: unknown
+  title?: unknown
+  subtitle?: unknown
+  description?: unknown
+  more_info?: {
+    album?: unknown
+    primary_artists?: unknown
+  }
+}
+
+type SearchArtistCandidate = {
+  id?: unknown
+  title?: unknown
+  type?: unknown
+}
+
+const normalizeSearchText = (value: unknown) =>
+  String(value || '')
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+
+export const hasUsefulSongSearchResult = (query: string, song: SearchSongCandidate) => {
+  const normalizedQuery = normalizeSearchText(query)
+  const queryTokens = normalizedQuery.split(' ').filter(Boolean)
+  const searchableText = normalizeSearchText(
+    [song.title, song.subtitle, song.description, song.more_info?.album, song.more_info?.primary_artists].join(' ')
+  )
+
+  return Boolean(
+    normalizedQuery &&
+      (searchableText.includes(normalizedQuery) || queryTokens.every((token) => searchableText.includes(token)))
+  )
+}
+
+export const getMatchingSongIds = (query: string, songs: SearchSongCandidate[], limit: number) =>
+  songs
+    .filter((song) => typeof song.id === 'string' && hasUsefulSongSearchResult(query, song))
+    .map((song) => song.id as string)
+    .filter((id, index, ids) => ids.indexOf(id) === index)
+    .slice(0, Math.min(Math.max(limit, 1), 10))
+
+export const getMatchingArtistIds = (query: string, artists: SearchArtistCandidate[]) => {
+  const normalizedQuery = normalizeSearchText(query)
+
+  return artists
+    .filter(
+      (artist) =>
+        artist.type === 'artist' &&
+        typeof artist.id === 'string' &&
+        normalizeSearchText(artist.title) === normalizedQuery
+    )
+    .map((artist) => artist.id as string)
+    .filter((id, index, ids) => ids.indexOf(id) === index)
+    .slice(0, 2)
+}
+
 export const createSearchPayload = (search: z.infer<typeof SearchAPIResponseModel>): z.infer<typeof SearchModel> => ({
   topQuery: {
     results: search?.topquery?.data.map((item) => {
