@@ -1,7 +1,12 @@
 import { Endpoints } from '#common/constants'
 import { useFetch } from '#common/helpers'
 import { createSongPayload } from '#modules/songs/helpers'
-import { getMatchingArtistIds, getMatchingSongIds, hasUsefulSongSearchResult } from '#modules/search/helpers'
+import {
+  getMatchingAlbumSongIds,
+  getMatchingArtistIds,
+  getMatchingSongIds,
+  hasUsefulSongSearchResult
+} from '#modules/search/helpers'
 import type { IUseCase } from '#common/types'
 import type { SearchSongAPIResponseModel, SearchSongModel } from '#modules/search/models'
 import type { SongAPIResponseModel } from '#modules/songs/models'
@@ -40,6 +45,7 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
     try {
       const { data: autocomplete } = await useFetch<{
         songs?: { data?: Parameters<typeof getMatchingSongIds>[1] }
+        albums?: { data?: { title?: unknown; description?: unknown; more_info?: { music?: unknown; song_pids?: unknown } }[] }
         artists?: { data?: { id?: unknown; title?: unknown; type?: unknown }[] }
         topquery?: { data?: { id?: unknown; title?: unknown; type?: unknown }[] }
       }>({
@@ -48,6 +54,10 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       })
 
       let songIds = getMatchingSongIds(query, autocomplete.songs?.data || [], Math.max(limit, 1) * (page + 1))
+
+      if (!songIds.length) {
+        songIds = getMatchingAlbumSongIds(query, autocomplete.albums?.data || [], Math.max(limit, 1) * (page + 1))
+      }
 
       if (!songIds.length) {
         const artistIds = getMatchingArtistIds(query, [

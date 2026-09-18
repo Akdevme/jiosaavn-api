@@ -3,6 +3,7 @@ export {
 	createSearchPlaylistPayload,
 	createSearchAlbumPayload,
 	getMatchingArtistIds,
+	getMatchingAlbumSongIds,
 	getMatchingSongIds,
 	hasUsefulSongSearchResult
 } from './search.helper'

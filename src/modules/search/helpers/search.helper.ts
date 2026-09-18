@@ -18,6 +18,7 @@ type SearchSongCandidate = {
   more_info?: {
     album?: unknown
     primary_artists?: unknown
+    music?: unknown
   }
 }
 
@@ -25,6 +26,15 @@ type SearchArtistCandidate = {
   id?: unknown
   title?: unknown
   type?: unknown
+}
+
+type SearchAlbumCandidate = {
+  title?: unknown
+  description?: unknown
+  more_info?: {
+    music?: unknown
+    song_pids?: unknown
+  }
 }
 
 const normalizeSearchText = (value: unknown) =>
@@ -38,7 +48,14 @@ export const hasUsefulSongSearchResult = (query: string, song: SearchSongCandida
   const normalizedQuery = normalizeSearchText(query)
   const queryTokens = normalizedQuery.split(' ').filter(Boolean)
   const searchableText = normalizeSearchText(
-    [song.title, song.subtitle, song.description, song.more_info?.album, song.more_info?.primary_artists].join(' ')
+    [
+      song.title,
+      song.subtitle,
+      song.description,
+      song.more_info?.album,
+      song.more_info?.primary_artists,
+      song.more_info?.music
+    ].join(' ')
   )
 
   return Boolean(
@@ -51,6 +68,15 @@ export const getMatchingSongIds = (query: string, songs: SearchSongCandidate[], 
   songs
     .filter((song) => typeof song.id === 'string' && hasUsefulSongSearchResult(query, song))
     .map((song) => song.id as string)
+    .filter((id, index, ids) => ids.indexOf(id) === index)
+    .slice(0, Math.min(Math.max(limit, 1), 10))
+
+export const getMatchingAlbumSongIds = (query: string, albums: SearchAlbumCandidate[], limit: number) =>
+  albums
+    .filter((album) => hasUsefulSongSearchResult(query, album))
+    .flatMap((album) => (typeof album.more_info?.song_pids === 'string' ? album.more_info.song_pids.split(',') : []))
+    .map((id) => id.trim())
+    .filter(Boolean)
     .filter((id, index, ids) => ids.indexOf(id) === index)
     .slice(0, Math.min(Math.max(limit, 1), 10))
 
