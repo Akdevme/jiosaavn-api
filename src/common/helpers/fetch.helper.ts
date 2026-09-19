@@ -14,7 +14,11 @@ interface FetchResponse<T> {
   ok: Response['ok']
 }
 
-export const useFetch = async <T>({ endpoint, params, context }: FetchParams): Promise<FetchResponse<T>> => {
+export const useFetch = async <T>({
+  endpoint,
+  params,
+  context
+}: FetchParams): Promise<FetchResponse<T>> => {
   const url = new URL('https://www.jiosaavn.com/api.php')
 
   url.searchParams.append('__call', endpoint.toString())
@@ -23,15 +27,22 @@ export const useFetch = async <T>({ endpoint, params, context }: FetchParams): P
   url.searchParams.append('api_version', '4')
   url.searchParams.append('ctx', context || 'web6dot0')
 
-  Object.keys(params).forEach((key) => url.searchParams.append(key, String(params[key])))
-
-  const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)]
+  Object.keys(params).forEach((key) =>
+    url.searchParams.append(key, String(params[key]))
+  )
 
   const response = await fetch(url.toString(), {
-    headers: { 'Content-Type': 'application/json', 'User-Agent': randomUserAgent }
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36'
+    }
   })
 
   const data = await response.json()
 
-  return { data: data as T, ok: response.ok }
+  return {
+    data: data as T,
+    ok: response.ok
+  }
 }
