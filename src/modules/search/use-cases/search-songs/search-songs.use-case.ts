@@ -8,7 +8,10 @@ import {
   hasUsefulSongSearchResult
 } from '#modules/search/helpers'
 import type { IUseCase } from '#common/types'
-import type { SearchSongAPIResponseModel, SearchSongModel } from '#modules/search/models'
+import type {
+  SearchSongAPIResponseModel,
+  SearchSongModel
+} from '#modules/search/models'
 import type { SongAPIResponseModel } from '#modules/songs/models'
 import type { z } from 'zod'
 
@@ -18,30 +21,66 @@ export interface SearchSongsArgs {
   limit: number
 }
 
-export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typeof SearchSongModel>> {
+export class SearchSongsUseCase
+  implements IUseCase<SearchSongsArgs, z.infer<typeof SearchSongModel>>
+{
   constructor() {}
 
-  async execute({ query, limit, page }: SearchSongsArgs): Promise<z.infer<typeof SearchSongModel>> {
+  async execute({
+    query,
+    limit,
+    page
+  }: SearchSongsArgs): Promise<z.infer<typeof SearchSongModel>> {
     // Deployment/debug marker
-    console.log('[SEARCH VERSION] FALLBACK SEARCH v2', {
+    console.log('[SEARCH VERSION] FALLBACK SEARCH v3', {
       query,
       page,
       limit,
       timestamp: new Date().toISOString()
     })
 
-    const { data } = await useFetch<z.infer<typeof SearchSongAPIResponseModel>>({
-      endpoint: Endpoints.search.songs,
-      params: {
-        q: query,
-        p: page,
-        n: limit
-      }
-    })
+    // ------------------------------------------------------------
+    // PRIMARY SEARCH
+    // ------------------------------------------------------------
+
+    const { data } =
+      await useFetch<z.infer<typeof SearchSongAPIResponseModel>>({
+        endpoint: Endpoints.search.songs,
+        params: {
+          q: query,
+          p: page,
+
+          // Ask JioSaavn for more results.
+          // The user's requested limit can still remain 1,
+          // but we need enough upstream results to find the
+          // actual matching song.
+          n: Math.max(limit * 10, 10)
+        }
+      })
 
     const primaryResults = data.results || []
 
-    const primaryPayload = primaryResults
+    console.log('[SEARCH] Primary results received:', {
+      query,
+      total: data.total,
+      results: primaryResults.length
+    })
+
+    // ------------------------------------------------------------
+    // FILTER PRIMARY RESULTS
+    // ------------------------------------------------------------
+
+    const matchingPrimaryResults = primaryResults.filter((song) =>
+      hasUsefulSongSearchResult(query, song)
+    )
+
+    console.log('[SEARCH] Matching primary results:', {
+      query,
+      count: matchingPrimaryResults.length,
+      ids: matchingPrimaryResults.map((song) => song.id)
+    })
+
+    const primaryPayload = matchingPrimaryResults
       .map(createSongPayload)
       .slice(0, limit)
 
@@ -49,12 +88,12 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
     // PRIMARY SEARCH FOUND A USEFUL RESULT
     // ------------------------------------------------------------
 
-    if (primaryResults.some((song) => hasUsefulSongSearchResult(query, song))) {
+    if (matchingPrimaryResults.length) {
       console.log('[SEARCH] Primary search matched:', query)
 
       return {
         total: data.total,
-        start: data.start,
+        start: page * limit,
         results: primaryPayload
       }
     }
@@ -184,7 +223,10 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
         songIds = artistSongResponses
           .flat()
           .map((song) => song.id)
-          .filter((id): id is string => typeof id === 'string')
+          .filter(
+            (id): id is string =>
+              typeof id === 'string'
+          )
           .filter(
             (id, index, ids) =>
               ids.indexOf(id) === index
@@ -197,7 +239,10 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
             )
           )
 
-        console.log('[SEARCH] Artist fallback IDs:', songIds)
+        console.log(
+          '[SEARCH] Artist fallback IDs:',
+          songIds
+        )
       }
 
       // ----------------------------------------------------------
@@ -209,11 +254,17 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
         (page + 1) * limit
       )
 
-      console.log('[SEARCH] Final fallback IDs:', fallbackIds)
+      console.log(
+        '[SEARCH] Final fallback IDs:',
+        fallbackIds
+      )
 
       // Nothing discovered
       if (!fallbackIds.length) {
-        console.log('[SEARCH] Fallback found no songs:', query)
+        console.log(
+          '[SEARCH] Fallback found no songs:',
+          query
+        )
 
         return {
           total: songIds.length,
@@ -285,9 +336,6 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
         query,
         error
       )
-
-      // Keep the original search response
-      // if fallback discovery fails.
     }
 
     // ------------------------------------------------------------
