@@ -74,7 +74,6 @@ npm start
 - `GET /api/songs?link=https://www.jiosaavn.com/song/houdini/OgwhbhtDRwM` - Get song by link
 - `GET /api/songs/{id}` - Get song by ID
 - `GET /api/songs/{id}/suggestions?limit=10` - Get song suggestions
-- `GET /api/songs/{id}/lyrics` - Get synced lyrics in LRC and parsed timestamp formats
 
 ### Albums
 

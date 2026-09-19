@@ -10,200 +10,7 @@ import type {
 } from '#modules/search/models'
 import type { z } from 'zod'
 
-type SearchSongCandidate = {
-  id?: unknown
-  title?: unknown
-  subtitle?: unknown
-  description?: unknown
-  perma_url?: unknown
-  more_info?: {
-    album?: unknown
-    primary_artists?: unknown
-    singers?: unknown
-    music?: unknown
-    artistMap?: {
-      primary_artists?: {
-        name?: unknown
-        title?: unknown
-      }[]
-      artists?: {
-        name?: unknown
-        title?: unknown
-      }[]
-      featured_artists?: {
-        name?: unknown
-        title?: unknown
-      }[]
-    }
-  }
-}
-
-type SearchArtistCandidate = {
-  id?: unknown
-  title?: unknown
-  type?: unknown
-}
-
-type SearchAlbumCandidate = {
-  id?: unknown
-  title?: unknown
-  description?: unknown
-  perma_url?: unknown
-  more_info?: {
-    music?: unknown
-    song_pids?: unknown
-  }
-}
-
-const normalizeSearchText = (value: unknown) =>
-  String(value || '')
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-
-const getSearchableArtistText = (
-  song: SearchSongCandidate
-) => {
-  const primaryArtists =
-    song.more_info?.artistMap?.primary_artists || []
-
-  const artists =
-    song.more_info?.artistMap?.artists || []
-
-  const featuredArtists =
-    song.more_info?.artistMap?.featured_artists || []
-
-  return [
-    song.more_info?.primary_artists,
-    song.more_info?.singers,
-    song.more_info?.music,
-
-    ...primaryArtists.flatMap((artist) => [
-      artist.name,
-      artist.title
-    ]),
-
-    ...artists.flatMap((artist) => [
-      artist.name,
-      artist.title
-    ]),
-
-    ...featuredArtists.flatMap((artist) => [
-      artist.name,
-      artist.title
-    ])
-  ].join(' ')
-}
-
-export const hasUsefulSongSearchResult = (
-  query: string,
-  song: SearchSongCandidate
-) => {
-  const normalizedQuery = normalizeSearchText(query)
-
-  if (!normalizedQuery) {
-    return false
-  }
-
-  const queryTokens = normalizedQuery
-    .split(' ')
-    .filter(Boolean)
-
-  const searchableText = normalizeSearchText(
-    [
-      song.title,
-      song.subtitle,
-      song.description,
-      song.more_info?.album,
-      getSearchableArtistText(song)
-    ].join(' ')
-  )
-
-  // Exact full-query match
-  if (searchableText.includes(normalizedQuery)) {
-    return true
-  }
-
-  // Every query word must occur somewhere in the
-  // complete searchable song metadata.
-  return queryTokens.every((token) =>
-    searchableText.includes(token)
-  )
-}
-
-export const getMatchingSongIds = (
-  query: string,
-  songs: SearchSongCandidate[],
-  limit: number
-) =>
-  songs
-    .filter(
-      (song) =>
-        typeof song.id === 'string' &&
-        hasUsefulSongSearchResult(query, song)
-    )
-    .map((song) => song.id as string)
-    .filter(
-      (id, index, ids) =>
-        ids.indexOf(id) === index
-    )
-    .slice(
-      0,
-      Math.min(Math.max(limit, 1), 10)
-    )
-
-export const getMatchingAlbumSongIds = (
-  query: string,
-  albums: SearchAlbumCandidate[],
-  limit: number
-) =>
-  albums
-    .filter((album) =>
-      hasUsefulSongSearchResult(query, album)
-    )
-    .flatMap((album) =>
-      typeof album.more_info?.song_pids === 'string'
-        ? album.more_info.song_pids.split(',')
-        : []
-    )
-    .map((id) => id.trim())
-    .filter(Boolean)
-    .filter(
-      (id, index, ids) =>
-        ids.indexOf(id) === index
-    )
-    .slice(
-      0,
-      Math.min(Math.max(limit, 1), 10)
-    )
-
-export const getMatchingArtistIds = (
-  query: string,
-  artists: SearchArtistCandidate[]
-) => {
-  const normalizedQuery =
-    normalizeSearchText(query)
-
-  return artists
-    .filter(
-      (artist) =>
-        artist.type === 'artist' &&
-        typeof artist.id === 'string' &&
-        normalizeSearchText(artist.title)
-          .includes(normalizedQuery)
-    )
-    .map((artist) => artist.id as string)
-    .filter(
-      (id, index, ids) =>
-        ids.indexOf(id) === index
-    )
-    .slice(0, 2)
-}
-
-export const createSearchPayload = (
-  search: z.infer<typeof SearchAPIResponseModel>
-): z.infer<typeof SearchModel> => ({
+export const createSearchPayload = (search: z.infer<typeof SearchAPIResponseModel>): z.infer<typeof SearchModel> => ({
   topQuery: {
     results: search?.topquery?.data.map((item) => {
       return {
@@ -215,8 +22,7 @@ export const createSearchPayload = (
         type: item?.type,
         language: item?.more_info?.language,
         description: item?.description,
-        primaryArtists:
-          item?.more_info?.primary_artists,
+        primaryArtists: item?.more_info?.primary_artists,
         singers: item?.more_info?.singers
       }
     }),
@@ -233,8 +39,7 @@ export const createSearchPayload = (
         url: song?.perma_url,
         type: song?.type,
         description: song?.description,
-        primaryArtists:
-          song?.more_info?.primary_artists,
+        primaryArtists: song?.more_info?.primary_artists,
         singers: song?.more_info?.singers,
         language: song?.more_info?.language
       }
@@ -291,9 +96,7 @@ export const createSearchPayload = (
 })
 
 export const createSearchPlaylistPayload = (
-  playlist: z.infer<
-    typeof SearchPlaylistAPIResponseModel
-  >
+  playlist: z.infer<typeof SearchPlaylistAPIResponseModel>
 ): z.infer<typeof SearchPlaylistModel> => ({
   total: Number(playlist.total),
   start: Number(playlist.start),
@@ -303,19 +106,14 @@ export const createSearchPlaylistPayload = (
     type: item.type,
     image: createImageLinks(item.image),
     url: item.perma_url,
-    songCount: item.more_info.song_count
-      ? Number(item.more_info.song_count)
-      : null,
+    songCount: item.more_info.song_count ? Number(item.more_info.song_count) : null,
     language: item.more_info.language,
-    explicitContent:
-      item.explicit_content === '1'
+    explicitContent: item.explicit_content === '1'
   }))
 })
 
 export const createSearchAlbumPayload = (
-  album: z.infer<
-    typeof SearchAlbumAPIResponseModel
-  >
+  album: z.infer<typeof SearchAlbumAPIResponseModel>
 ): z.infer<typeof SearchAlbumModel> => ({
   total: Number(album.total),
   start: Number(album.start),
@@ -326,25 +124,13 @@ export const createSearchAlbumPayload = (
     url: item.perma_url,
     year: item.year ? Number(item.year) : null,
     type: item.type,
-    playCount: item.play_count
-      ? Number(item.play_count)
-      : null,
+    playCount: item.play_count ? Number(item.play_count) : null,
     language: item.language,
-    explicitContent:
-      item.explicit_content === '1',
+    explicitContent: item.explicit_content === '1',
     artists: {
-      primary:
-        item.more_info?.artistMap?.primary_artists?.map(
-          createArtistMapPayload
-        ),
-      featured:
-        item.more_info?.artistMap?.featured_artists?.map(
-          createArtistMapPayload
-        ),
-      all:
-        item.more_info?.artistMap?.artists?.map(
-          createArtistMapPayload
-        )
+      primary: item.more_info?.artistMap?.primary_artists?.map(createArtistMapPayload),
+      featured: item.more_info?.artistMap?.featured_artists?.map(createArtistMapPayload),
+      all: item.more_info?.artistMap?.artists?.map(createArtistMapPayload)
     },
     image: createImageLinks(item.image)
   }))
