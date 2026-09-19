@@ -60,6 +60,8 @@ export class SearchSongsUseCase
 
     const primaryResults = data.results || []
 
+const primaryResults = data.results || []
+
 console.log(
   '[SEARCH] PRIMARY RESULTS:',
   primaryResults.map((song) => ({
@@ -67,9 +69,25 @@ console.log(
     title: song.title,
     subtitle: song.subtitle,
     album: song.more_info?.album,
-    artists: song.more_info?.primary_artists
+    music: song.more_info?.music
   }))
 )
+
+console.log('[SEARCH] Primary results received:', {
+  query,
+  total: data.total,
+  results: primaryResults.length
+})
+
+const matchingPrimaryResults = primaryResults.filter((song) =>
+  hasUsefulSongSearchResult(query, song)
+)
+
+console.log('[SEARCH] Matching primary results:', {
+  query,
+  count: matchingPrimaryResults.length,
+  ids: matchingPrimaryResults.map((song) => song.id)
+})
 
     // ------------------------------------------------------------
     // FILTER PRIMARY RESULTS
