@@ -60,11 +60,16 @@ export class SearchSongsUseCase
 
     const primaryResults = data.results || []
 
-    console.log('[SEARCH] Primary results received:', {
-      query,
-      total: data.total,
-      results: primaryResults.length
-    })
+console.log(
+  '[SEARCH] PRIMARY RESULTS:',
+  primaryResults.map((song) => ({
+    id: song.id,
+    title: song.title,
+    subtitle: song.subtitle,
+    album: song.more_info?.album,
+    artists: song.more_info?.primary_artists
+  }))
+)
 
     // ------------------------------------------------------------
     // FILTER PRIMARY RESULTS
