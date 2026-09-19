@@ -1,1 +1,9 @@
-export { createSearchPayload, createSearchPlaylistPayload, createSearchAlbumPayload } from './search.helper'
+export {
+	createSearchPayload,
+	createSearchPlaylistPayload,
+	createSearchAlbumPayload,
+	getMatchingArtistIds,
+	getMatchingAlbumSongIds,
+	getMatchingSongIds,
+	hasUsefulSongSearchResult
+} from './search.helper'
