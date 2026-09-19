@@ -82,14 +82,24 @@ export const getMatchingAlbumSongIds = (query: string, albums: SearchAlbumCandid
 
 export const getMatchingArtistIds = (query: string, artists: SearchArtistCandidate[]) => {
   const normalizedQuery = normalizeSearchText(query)
+  const queryTokens = normalizedQuery.split(' ').filter(Boolean)
 
   return artists
-    .filter(
-      (artist) =>
-        artist.type === 'artist' &&
-        typeof artist.id === 'string' &&
-        normalizeSearchText(artist.title) === normalizedQuery
-    )
+    .filter((artist) => {
+      if (artist.type !== 'artist' || typeof artist.id !== 'string') return false
+
+      const artistText = normalizeSearchText(artist.title)
+      if (!artistText) return false
+
+      const artistTokens = artistText.split(' ').filter(Boolean)
+
+      return (
+        normalizedQuery.includes(artistText) ||
+        artistText.includes(normalizedQuery) ||
+        artistTokens.some((token) => normalizedQuery.includes(token)) ||
+        queryTokens.some((token) => artistTokens.includes(token))
+      )
+    })
     .map((artist) => artist.id as string)
     .filter((id, index, ids) => ids.indexOf(id) === index)
     .slice(0, 2)
