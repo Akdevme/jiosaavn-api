@@ -110,11 +110,11 @@ export class SearchSongsUseCase implements IUseCase<SearchSongsArgs, z.infer<typ
       })
 
       console.log('[SEARCH] Autocomplete response received')console.log(
-  '[SEARCH] Autocomplete raw data:',
-  JSON.stringify(autocomplete)
-)
+        '[SEARCH] Autocomplete raw data:',
+        JSON.stringify(autocomplete)
+      )
 
-console.log('[SEARCH] Autocomplete response received')
+      console.log('[SEARCH] Autocomplete response received')
 
       // ----------------------------------------------------------
       // 2. DIRECT SONG MATCH
