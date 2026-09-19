@@ -31,7 +31,6 @@ export class SearchSongsUseCase
     limit,
     page
   }: SearchSongsArgs): Promise<z.infer<typeof SearchSongModel>> {
-    // Deployment/debug marker
     console.log('[SEARCH VERSION] FALLBACK SEARCH v3', {
       query,
       page,
@@ -39,60 +38,46 @@ export class SearchSongsUseCase
       timestamp: new Date().toISOString()
     })
 
-    // ------------------------------------------------------------
-    // PRIMARY SEARCH
-    // ------------------------------------------------------------
-
+    /*
+     * Ask JioSaavn for more results than the client requested.
+     *
+     * This is important because JioSaavn can sometimes return a large
+     * total count but put the useful matching song outside the first
+     * single result returned to our API.
+     */
     const { data } =
       await useFetch<z.infer<typeof SearchSongAPIResponseModel>>({
         endpoint: Endpoints.search.songs,
         params: {
           q: query,
           p: page,
-
-          // Ask JioSaavn for more results.
-          // The user's requested limit can still remain 1,
-          // but we need enough upstream results to find the
-          // actual matching song.
           n: Math.max(limit * 10, 10)
         }
       })
 
     const primaryResults = data.results || []
 
-const primaryResults = data.results || []
+    console.log(
+      '[SEARCH] PRIMARY RESULTS:',
+      primaryResults.map((song) => ({
+        id: song.id,
+        title: song.title,
+        subtitle: song.subtitle,
+        album: song.more_info?.album,
+        music: song.more_info?.music
+      }))
+    )
 
-console.log(
-  '[SEARCH] PRIMARY RESULTS:',
-  primaryResults.map((song) => ({
-    id: song.id,
-    title: song.title,
-    subtitle: song.subtitle,
-    album: song.more_info?.album,
-    music: song.more_info?.music
-  }))
-)
+    console.log('[SEARCH] Primary results received:', {
+      query,
+      total: data.total,
+      start: data.start,
+      results: primaryResults.length
+    })
 
-console.log('[SEARCH] Primary results received:', {
-  query,
-  total: data.total,
-  results: primaryResults.length
-})
-
-const matchingPrimaryResults = primaryResults.filter((song) =>
-  hasUsefulSongSearchResult(query, song)
-)
-
-console.log('[SEARCH] Matching primary results:', {
-  query,
-  count: matchingPrimaryResults.length,
-  ids: matchingPrimaryResults.map((song) => song.id)
-})
-
-    // ------------------------------------------------------------
-    // FILTER PRIMARY RESULTS
-    // ------------------------------------------------------------
-
+    /*
+     * Only keep results that actually match the user's search.
+     */
     const matchingPrimaryResults = primaryResults.filter((song) =>
       hasUsefulSongSearchResult(query, song)
     )
@@ -107,10 +92,9 @@ console.log('[SEARCH] Matching primary results:', {
       .map(createSongPayload)
       .slice(0, limit)
 
-    // ------------------------------------------------------------
-    // PRIMARY SEARCH FOUND A USEFUL RESULT
-    // ------------------------------------------------------------
-
+    /*
+     * Normal search succeeded.
+     */
     if (matchingPrimaryResults.length) {
       console.log('[SEARCH] Primary search matched:', query)
 
@@ -121,18 +105,14 @@ console.log('[SEARCH] Matching primary results:', {
       }
     }
 
-    // ------------------------------------------------------------
-    // FALLBACK SEARCH
-    // ------------------------------------------------------------
-
+    /*
+     * Primary search did not contain a useful match.
+     * Try the existing fallback discovery flow.
+     */
     console.log('[SEARCH] Primary search missed:', query)
     console.log('[SEARCH] Starting fallback discovery...')
 
     try {
-      // ----------------------------------------------------------
-      // 1. AUTOCOMPLETE / SEARCH ALL
-      // ----------------------------------------------------------
-
       const { data: autocomplete } = await useFetch<{
         songs?: {
           data?: Parameters<typeof getMatchingSongIds>[1]
@@ -173,10 +153,9 @@ console.log('[SEARCH] Matching primary results:', {
 
       console.log('[SEARCH] Autocomplete response received')
 
-      // ----------------------------------------------------------
-      // 2. DIRECT SONG MATCH
-      // ----------------------------------------------------------
-
+      /*
+       * 1. Direct song discovery
+       */
       let songIds = getMatchingSongIds(
         query,
         autocomplete.songs?.data || [],
@@ -185,10 +164,9 @@ console.log('[SEARCH] Matching primary results:', {
 
       console.log('[SEARCH] Direct song IDs:', songIds)
 
-      // ----------------------------------------------------------
-      // 3. ALBUM FALLBACK
-      // ----------------------------------------------------------
-
+      /*
+       * 2. Album discovery
+       */
       if (!songIds.length) {
         songIds = getMatchingAlbumSongIds(
           query,
@@ -199,10 +177,9 @@ console.log('[SEARCH] Matching primary results:', {
         console.log('[SEARCH] Album fallback IDs:', songIds)
       }
 
-      // ----------------------------------------------------------
-      // 4. ARTIST FALLBACK
-      // ----------------------------------------------------------
-
+      /*
+       * 3. Artist discovery
+       */
       if (!songIds.length) {
         const artistIds = getMatchingArtistIds(query, [
           ...(autocomplete.artists?.data || []),
@@ -246,14 +223,8 @@ console.log('[SEARCH] Matching primary results:', {
         songIds = artistSongResponses
           .flat()
           .map((song) => song.id)
-          .filter(
-            (id): id is string =>
-              typeof id === 'string'
-          )
-          .filter(
-            (id, index, ids) =>
-              ids.indexOf(id) === index
-          )
+          .filter((id): id is string => typeof id === 'string')
+          .filter((id, index, ids) => ids.indexOf(id) === index)
           .slice(
             0,
             Math.min(
@@ -262,32 +233,24 @@ console.log('[SEARCH] Matching primary results:', {
             )
           )
 
-        console.log(
-          '[SEARCH] Artist fallback IDs:',
-          songIds
-        )
+        console.log('[SEARCH] Artist fallback IDs:', songIds)
       }
 
-      // ----------------------------------------------------------
-      // 5. PAGINATION
-      // ----------------------------------------------------------
-
+      /*
+       * Apply pagination after collecting fallback IDs.
+       */
       const fallbackIds = songIds.slice(
         page * limit,
         (page + 1) * limit
       )
 
-      console.log(
-        '[SEARCH] Final fallback IDs:',
-        fallbackIds
-      )
+      console.log('[SEARCH] Final fallback IDs:', fallbackIds)
 
-      // Nothing discovered
+      /*
+       * No fallback IDs found.
+       */
       if (!fallbackIds.length) {
-        console.log(
-          '[SEARCH] Fallback found no songs:',
-          query
-        )
+        console.log('[SEARCH] Fallback found no songs:', query)
 
         return {
           total: songIds.length,
@@ -296,10 +259,9 @@ console.log('[SEARCH] Matching primary results:', {
         }
       }
 
-      // ----------------------------------------------------------
-      // 6. GET FULL SONG DETAILS
-      // ----------------------------------------------------------
-
+      /*
+       * Fetch complete song details.
+       */
       const { data: details } = await useFetch<{
         songs?: z.infer<typeof SongAPIResponseModel>[]
       }>({
@@ -314,10 +276,9 @@ console.log('[SEARCH] Matching primary results:', {
         details.songs?.length || 0
       )
 
-      // ----------------------------------------------------------
-      // 7. REMOVE DUPLICATES + CREATE NORMAL PAYLOAD
-      // ----------------------------------------------------------
-
+      /*
+       * Remove duplicate songs and convert to our API payload.
+       */
       const fallbackResults = (details.songs || [])
         .filter(
           (song, index, songs) =>
@@ -332,10 +293,9 @@ console.log('[SEARCH] Matching primary results:', {
         fallbackResults.length
       )
 
-      // ----------------------------------------------------------
-      // 8. RETURN FALLBACK RESULTS
-      // ----------------------------------------------------------
-
+      /*
+       * Fallback succeeded.
+       */
       if (fallbackResults.length) {
         console.log(
           '[SEARCH] FALLBACK SUCCESS:',
@@ -361,10 +321,10 @@ console.log('[SEARCH] Matching primary results:', {
       )
     }
 
-    // ------------------------------------------------------------
-    // ORIGINAL PRIMARY RESPONSE
-    // ------------------------------------------------------------
-
+    /*
+     * If fallback is unavailable, return whatever useful primary
+     * results we had rather than breaking the endpoint.
+     */
     console.log(
       '[SEARCH] Returning primary response:',
       query
